@@ -685,70 +685,91 @@ async function renderThermalReceipt(orderReceiptData) {
 
     // Fetch branch info from Supabase
     const branches = await SupabaseDB.getBranches();
-    const branch = branches.find(b => b.id === order.branch_id) || { name: 'Branch', address: '', phone: '' };
+    const branch = branches.find(b => b.id === order.branch_id) || { 
+        name: 'Battambang Optics', 
+        address: 'ភូមិព្រែកព្រះស្តេច ឃុំព្រែកព្រះស្តេច ស្រុកបាត់ដំបង ខេត្តបាត់ដំបង', 
+        phone: '069 27 28 88/ 089 56 01 91',
+        email: 'battambangoptics@gmail.com'
+    };
 
-    document.getElementById('rc-branch-name').textContent = branch.name;
-    document.getElementById('rc-branch-address').textContent = branch.address || '';
-    document.getElementById('rc-branch-phone').textContent = branch.phone ? `Tel: ${branch.phone}` : '';
+    const branchNameEl = document.getElementById('rc-branch-name');
+    const branchAddressEl = document.getElementById('rc-branch-address');
+    const branchPhoneEl = document.getElementById('rc-branch-phone');
+    const branchEmailEl = document.getElementById('rc-branch-email');
 
-    document.getElementById('rc-order-number').textContent = order.order_number;
-    document.getElementById('rc-date-time').textContent = new Date(order.created_at || Date.now()).toLocaleString();
-    document.getElementById('rc-cashier').textContent = cashier ? cashier.full_name : 'Staff Cashier';
-    document.getElementById('rc-customer').textContent = customer ? customer.full_name : 'Walk-in Customer';
+    if (branchNameEl) branchNameEl.textContent = branch.name || 'Battambang Optics';
+    if (branchAddressEl) branchAddressEl.textContent = branch.address || 'ភូមិព្រែកព្រះស្តេច ឃុំព្រែកព្រះស្តេច ស្រុកបាត់ដំបង ខេត្តបាត់ដំបង';
+    if (branchPhoneEl) branchPhoneEl.textContent = branch.phone || '069 27 28 88/ 089 56 01 91';
+    if (branchEmailEl) branchEmailEl.textContent = branch.email || 'battambangoptics@gmail.com';
+
+    document.getElementById('rc-order-number').textContent = order.order_number || ('INV/' + Date.now().toString().slice(-7));
+    
+    // Date formatting (DD-MM-YYYY HH:mm)
+    const dateObj = new Date(order.created_at || Date.now());
+    const dateFormatted = `${String(dateObj.getDate()).padStart(2, '0')}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${dateObj.getFullYear()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+    document.getElementById('rc-date-time').textContent = dateFormatted;
+    
+    const customerName = customer ? (customer.full_name || customer.name) : 'SOKVOEURN';
+    document.getElementById('rc-customer').textContent = customerName;
 
     // Render Prescription Block if present
     const rxBlock = document.getElementById('rc-prescription-block');
     if (prescription && rxBlock) {
         rxBlock.classList.remove('hidden');
-        document.getElementById('rc-od-sph').textContent = prescription.od_sph.toFixed(2);
-        document.getElementById('rc-od-cyl').textContent = prescription.od_cyl.toFixed(2);
-        document.getElementById('rc-od-axis').textContent = `${prescription.od_axis}°`;
-        document.getElementById('rc-od-add').textContent = prescription.od_add > 0 ? `+${prescription.od_add.toFixed(2)}` : '0.00';
+        document.getElementById('rc-od-sph').textContent = (prescription.od_sph || 0).toFixed(2);
+        document.getElementById('rc-od-cyl').textContent = (prescription.od_cyl || 0).toFixed(2);
+        document.getElementById('rc-od-axis').textContent = `${prescription.od_axis || 0}°`;
+        document.getElementById('rc-od-add').textContent = (prescription.od_add || 0) > 0 ? `+${prescription.od_add.toFixed(2)}` : '0.00';
 
-        document.getElementById('rc-os-sph').textContent = prescription.os_sph.toFixed(2);
-        document.getElementById('rc-os-cyl').textContent = prescription.os_cyl.toFixed(2);
-        document.getElementById('rc-os-axis').textContent = `${prescription.os_axis}°`;
-        document.getElementById('rc-os-add').textContent = prescription.os_add > 0 ? `+${prescription.os_add.toFixed(2)}` : '0.00';
+        document.getElementById('rc-os-sph').textContent = (prescription.os_sph || 0).toFixed(2);
+        document.getElementById('rc-os-cyl').textContent = (prescription.os_cyl || 0).toFixed(2);
+        document.getElementById('rc-os-axis').textContent = `${prescription.os_axis || 0}°`;
+        document.getElementById('rc-os-add').textContent = (prescription.os_add || 0) > 0 ? `+${prescription.os_add.toFixed(2)}` : '0.00';
 
-        document.getElementById('rc-pd').textContent = prescription.pd;
+        document.getElementById('rc-pd').textContent = prescription.pd || 64.0;
     } else if (rxBlock) {
         rxBlock.classList.add('hidden');
     }
 
-    // Render Items
+    // Render Items Table Rows
     const itemsList = document.getElementById('rc-items-list');
     let subtotal = 0;
+    let totalDiscount = 0;
+
     if (itemsList) {
-        itemsList.innerHTML = items.map(item => {
+        itemsList.innerHTML = items.map((item, idx) => {
             const itemTotal = item.unit_price * item.quantity;
+            const discountAmount = item.discount || 0;
             subtotal += itemTotal;
+            totalDiscount += discountAmount;
+
+            const discountText = discountAmount > 0 
+                ? `(${discountAmount.toFixed(2)}) $${discountAmount.toFixed(2)}`
+                : '$0.00';
+
             return `
-                <div class="receipt-item-row font-mono text-[10px]">
-                    <div class="font-bold truncate">${item.name}</div>
-                    <div class="flex justify-between">
-                        <span>${item.quantity} x $${item.unit_price.toFixed(2)}</span>
-                        <span>$${itemTotal.toFixed(2)}</span>
-                    </div>
-                </div>
+                <tr>
+                    <td class="text-center font-medium">${idx + 1}</td>
+                    <td class="font-medium">${item.name}</td>
+                    <td class="text-center font-medium">${item.quantity} UNIT</td>
+                    <td class="text-center font-medium">$${item.unit_price.toFixed(2)}</td>
+                    <td class="text-center font-medium">${discountText}</td>
+                    <td class="text-right font-medium">$${itemTotal.toFixed(2)}</td>
+                </tr>
             `;
         }).join('');
     }
 
-    const tax = subtotal * 0.08;
-    const total = subtotal + tax;
+    const grandTotalUsd = parseFloat(order.total_amount || (subtotal - totalDiscount));
+    const grandTotalKhr = Math.round(grandTotalUsd * 4000); // 1 USD = 4000 KHR
 
-    document.getElementById('rc-subtotal').textContent = `$${subtotal.toFixed(2)}`;
-    document.getElementById('rc-tax').textContent = `$${tax.toFixed(2)}`;
-    document.getElementById('rc-total').textContent = `$${total.toFixed(2)}`;
-    document.getElementById('rc-pay-method').textContent = order.payment_method;
+    const orderDiscountEl = document.getElementById('rc-order-discount');
+    const totalEl = document.getElementById('rc-total');
+    const totalKhrEl = document.getElementById('rc-total-khr');
 
-    const cashRow = document.getElementById('rc-cash-row');
-    if (order.payment_method === 'Cash' && cashRow) {
-        cashRow.classList.remove('hidden');
-        document.getElementById('rc-cash-change').textContent = `$${cashTendered.toFixed(2)} / $${changeDue.toFixed(2)}`;
-    } else if (cashRow) {
-        cashRow.classList.add('hidden');
-    }
+    if (orderDiscountEl) orderDiscountEl.textContent = `$${totalDiscount.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `$${grandTotalUsd.toFixed(2)}`;
+    if (totalKhrEl) totalKhrEl.textContent = `៛${grandTotalKhr.toLocaleString('en-US')}`;
 
     const receiptModal = document.getElementById('modal-receipt');
     if (receiptModal) receiptModal.classList.remove('hidden');

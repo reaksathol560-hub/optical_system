@@ -746,80 +746,76 @@
 
 
     <!-- =================================================================== -->
-    <!-- MODAL 4: 80MM PRINTABLE THERMAL RECEIPT MODAL -->
+    <!-- MODAL 4: A4 PRINTABLE INVOICE MODAL -->
     <!-- =================================================================== -->
     <div id="modal-receipt" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
             
-            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between no-print">
-                <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                    <i class="fa-solid fa-receipt text-cyan-400"></i> Thermal Receipt Preview
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between no-print bg-slate-900">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice text-cyan-400"></i> A4 Invoice Preview
                 </h3>
-                <div class="flex items-center gap-2">
-                    <button onclick="window.print()" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg">
-                        <i class="fa-solid fa-print mr-1"></i> Print
+                <div class="flex items-center gap-3">
+                    <button onclick="window.print()" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-print"></i> Print A4 Invoice
                     </button>
                     <button onclick="closeModal('modal-receipt')" class="text-slate-400 hover:text-white transition">
-                        <i class="fa-solid fa-xmark text-lg"></i>
+                        <i class="fa-solid fa-xmark text-xl"></i>
                     </button>
                 </div>
             </div>
 
-            <div class="p-4 overflow-y-auto bg-slate-950 flex justify-center">
+            <div class="p-6 overflow-y-auto bg-slate-950 flex justify-center">
                 
-                <div id="thermal-receipt" class="receipt-paper">
+                <div id="thermal-receipt" class="invoice-a4-paper text-slate-900">
                     
-                    <div class="receipt-header">
-                        <div class="receipt-title">LENS & VISION OPTICAL</div>
-                        <div id="rc-branch-name" class="receipt-subtitle">Downtown Central Branch</div>
-                        <div id="rc-branch-address" class="receipt-[10px]">101 Grand Avenue, Suite 400</div>
-                        <div id="rc-branch-phone" class="receipt-[10px]">Tel: +1 (555) 019-2831</div>
-                        <div class="receipt-divider">================================</div>
-                    </div>
-
-                    <div class="receipt-meta space-y-0.5">
-                        <div class="flex justify-between">
-                            <span>Order No:</span>
-                            <span id="rc-order-number" class="font-bold">ORD-20260724-001</span>
+                    <!-- Header Title & Reference -->
+                    <div class="text-center mb-6">
+                        <h1 class="text-2xl font-bold uppercase tracking-wider text-black mb-1">INVOICE</h1>
+                        <div class="text-sm text-black">
+                            Reference No: <span id="rc-order-number" class="font-medium">INV/2466445</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span>Date:</span>
-                            <span id="rc-date-time">2026-07-24 14:32</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Cashier:</span>
-                            <span id="rc-cashier">Sophia Turner</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Customer:</span>
-                            <span id="rc-customer">John Doe</span>
+                        <div class="text-sm text-black">
+                            Date: <span id="rc-date-time" class="font-medium">23-05-2026 09:51</span>
                         </div>
                     </div>
 
-                    <div class="receipt-divider">--------------------------------</div>
+                    <!-- Company & Customer Details Row -->
+                    <div class="flex justify-between items-start mb-6 text-sm text-black leading-relaxed">
+                        <div class="space-y-0.5 max-w-md">
+                            <div><span class="font-normal">Company:</span> <span id="rc-branch-name" class="font-medium">Battambang Optics</span></div>
+                            <div><span class="font-normal">Address:</span> <span id="rc-branch-address" class="font-medium">ភូមិព្រែកព្រះស្តេច ឃុំព្រែកព្រះស្តេច ស្រុកបាត់ដំបង ខេត្តបាត់ដំបង</span></div>
+                            <div><span class="font-normal">Tel:</span> <span id="rc-branch-phone" class="font-medium">069 27 28 88/ 089 56 01 91</span></div>
+                            <div><span class="font-normal">Email:</span> <span id="rc-branch-email" class="font-medium">battambangoptics@gmail.com</span></div>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-normal">Customer:</span> <span id="rc-customer" class="font-medium">SOKVOEURN</span>
+                        </div>
+                    </div>
 
-                    <div id="rc-prescription-block" class="hidden my-2">
-                        <div class="font-bold text-center underline mb-1">OPTICAL PRESCRIPTION</div>
-                        <table class="w-full text-[10px] text-center border-collapse">
+                    <!-- Optical Prescription Block (If present) -->
+                    <div id="rc-prescription-block" class="hidden mb-4 border border-black p-3 rounded">
+                        <div class="font-bold text-center text-xs uppercase tracking-wider mb-2 border-b border-black pb-1">Optical Prescription Details</div>
+                        <table class="w-full text-xs text-center border-collapse">
                             <thead>
-                                <tr class="border-b border-black">
-                                    <th class="text-left">Eye</th>
-                                    <th>Sph</th>
-                                    <th>Cyl</th>
-                                    <th>Axis</th>
-                                    <th>Add</th>
+                                <tr class="font-bold border-b border-black">
+                                    <th class="text-left py-1">Eye</th>
+                                    <th class="py-1">Sph</th>
+                                    <th class="py-1">Cyl</th>
+                                    <th class="py-1">Axis</th>
+                                    <th class="py-1">Add</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td class="text-left font-bold">OD</td>
+                                <tr class="border-b border-gray-300">
+                                    <td class="text-left font-bold py-1">OD (Right)</td>
                                     <td id="rc-od-sph">-4.50</td>
                                     <td id="rc-od-cyl">-1.25</td>
                                     <td id="rc-od-axis">90°</td>
                                     <td id="rc-od-add">+2.00</td>
                                 </tr>
                                 <tr>
-                                    <td class="text-left font-bold">OS</td>
+                                    <td class="text-left font-bold py-1">OS (Left)</td>
                                     <td id="rc-os-sph">-4.75</td>
                                     <td id="rc-os-cyl">-1.50</td>
                                     <td id="rc-os-axis">85°</td>
@@ -827,45 +823,57 @@
                                 </tr>
                             </tbody>
                         </table>
-                        <div class="text-[9px] mt-1">PD: <span id="rc-pd">64.0</span> mm</div>
-                        <div class="receipt-divider">--------------------------------</div>
+                        <div class="text-xs mt-1.5 font-medium">PD: <span id="rc-pd">64.0</span> mm</div>
                     </div>
 
-                    <div class="font-bold mb-1">PURCHASED ITEMS</div>
-                    <div id="rc-items-list" class="space-y-1">
-                    </div>
+                    <!-- Main Items & Totals Table -->
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">No.</th>
+                                <th>Description</th>
+                                <th style="width: 110px;">Quantity</th>
+                                <th style="width: 110px;">Unit Price</th>
+                                <th style="width: 120px;">Discount</th>
+                                <th style="width: 120px;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rc-items-list">
+                            <!-- Items rows dynamically rendered -->
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" class="border-0"></td>
+                                <td class="font-bold text-right">Order Discount (USD)</td>
+                                <td id="rc-order-discount" class="font-bold text-right">$0.00</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="border-0"></td>
+                                <td class="font-bold text-right">Grand Total (USD)</td>
+                                <td id="rc-total" class="font-bold text-right">$0.00</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="border-0"></td>
+                                <td class="font-bold text-right">Grand Total (KHR)</td>
+                                <td id="rc-total-khr" class="font-bold text-right">៛0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
 
-                    <div class="receipt-divider">--------------------------------</div>
-
-                    <div class="space-y-0.5 text-right font-mono">
-                        <div class="flex justify-between">
-                            <span>Subtotal:</span>
-                            <span id="rc-subtotal">$0.00</span>
+                    <!-- Signatures Section -->
+                    <div class="mt-16 flex justify-between items-center text-center text-sm font-medium text-black px-4">
+                        <div class="w-1/4">
+                            <div class="mb-12">អតិថិជន/Customer</div>
+                            <div class="border-b border-black w-full"></div>
                         </div>
-                        <div class="flex justify-between">
-                            <span>Tax (8%):</span>
-                            <span id="rc-tax">$0.00</span>
+                        <div class="w-1/4">
+                            <div class="mb-12">អ្នកដឹក/Driver</div>
+                            <div class="border-b border-black w-full"></div>
                         </div>
-                        <div class="flex justify-between text-sm font-bold border-t border-black pt-1">
-                            <span>TOTAL:</span>
-                            <span id="rc-total">$0.00</span>
+                        <div class="w-1/4">
+                            <div class="mb-12">អ្នកលក់/Seller</div>
+                            <div class="border-b border-black w-full"></div>
                         </div>
-                        <div class="flex justify-between text-[11px] pt-1">
-                            <span>Payment Method:</span>
-                            <span id="rc-pay-method">Cash</span>
-                        </div>
-                        <div id="rc-cash-row" class="flex justify-between text-[10px]">
-                            <span>Tendered / Change:</span>
-                            <span id="rc-cash-change">$400.00 / $25.00</span>
-                        </div>
-                    </div>
-
-                    <div class="receipt-divider">================================</div>
-
-                    <div class="receipt-footer text-center">
-                        <div>*** THANK YOU FOR YOUR VISIT ***</div>
-                        <div class="text-[9px] mt-0.5">Please retain receipt for warranty & adjustments</div>
-                        <div class="font-mono text-[10px] tracking-widest mt-2">||| | ||||| ||| ||||| |||</div>
                     </div>
 
                 </div>
