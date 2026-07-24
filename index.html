@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lens & Vision - Multi-Branch Optical POS & Reports</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS (Excel Export) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF & AutoTable (PDF Export) CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- HTML5 QRCode & Barcode Scanner CDN -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- ZXing MultiFormat Barcode Reader CDN -->
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <!-- Quagga2 1D Barcode Scanner CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+    <!-- JsBarcode (Barcode SVG Generator for testing & printing) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+    <!-- Custom CSS Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="h-full text-slate-100 font-sans antialiased overflow-hidden flex flex-col bg-slate-950">
+
+    <!-- TOP HEADER NAVBAR -->
+    <header class="h-16 bg-slate-900/90 border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0">
+        <!-- Logo & App Name -->
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xl shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid fa-glasses"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-tight text-white flex items-center gap-2">
+                    LENS & VISION <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono">POS v2.0</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">Multi-Branch Optical Management</p>
+            </div>
+        </div>
+
+        <!-- Branch Selector (Superadmin) or Branch Badge (Admin/Cashier) -->
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <!-- Branch Selector for Superadmin -->
+                <select id="nav-branch-selector" class="hidden bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-semibold rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 transition">
+                    <!-- Populated dynamically via AuthManager -->
+                </select>
+
+                <!-- Static Branch Name Display for Admin/Cashier -->
+                <div id="nav-branch-display" class="hidden text-xs font-semibold text-cyan-300 bg-cyan-950/80 border border-cyan-800/80 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    📍 Downtown Central Branch
+                </div>
+            </div>
+
+            <!-- Active Cashier Profile Badge -->
+            <div class="flex items-center gap-3 border-l border-slate-800 pl-4">
+                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-cyan-400">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+                <div class="hidden sm:block text-left">
+                    <div id="nav-user-name" class="text-xs font-semibold text-slate-200">Sophia Turner</div>
+                    <div id="nav-user-role" class="text-[10px] text-emerald-400 uppercase font-mono">CASHIER</div>
+                </div>
+                <!-- Logout Button -->
+                <button onclick="AuthManager.logout()" title="Logout"
+                    class="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition ml-1">
+                    <i class="fa-solid fa-right-from-bracket text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WRAPPER (SIDEBAR + CONTENT VIEW) -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <aside class="w-16 sm:w-56 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0">
+            <nav class="p-2 sm:p-4 space-y-1">
+                <a href="#pos" id="nav-pos" onclick="switchTab('pos')"
+                    class="nav-link active flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-cash-register text-lg"></i>
+                    <span class="hidden sm:inline">POS Terminal</span>
+                </a>
+
+                <a href="#reports" id="nav-reports" onclick="switchTab('reports')"
+                    class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                    <span class="hidden sm:inline">Sales Reports</span>
+                </a>
+
+                <!-- Inventory Management Link (Admin & Superadmin) -->
+                <a href="#inventory" id="nav-inventory" onclick="switchTab('inventory')"
+                    class="nav-link hidden flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-boxes-stacked text-lg"></i>
+                    <span class="hidden sm:inline">Inventory & Stock</span>
+                </a>
+
+                <!-- Superadmin Management Links -->
+                <a href="#branches" id="nav-branches" onclick="switchTab('branches')"
+                    class="nav-link hidden flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-store text-lg"></i>
+                    <span class="hidden sm:inline">Branches</span>
+                </a>
+
+                <a href="#users" id="nav-users" onclick="switchTab('users')"
+                    class="nav-link hidden flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-users-gear text-lg"></i>
+                    <span class="hidden sm:inline">Users & Roles</span>
+                </a>
+            </nav>
+
+            <div class="p-3 text-[11px] text-slate-500 hidden sm:block border-t border-slate-800/80">
+                <div class="flex items-center gap-1.5 text-emerald-400 font-semibold mb-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Terminal Active
+                </div>
+                <div>Connected to Branch DB</div>
+            </div>
+        </aside>
+
+        <!-- CONTENT VIEW AREA -->
+        <main class="flex-1 overflow-hidden bg-slate-950 relative">
+
+            <!-- =================================================================== -->
+            <!-- VIEW 1: POS TERMINAL -->
+            <!-- =================================================================== -->
+            <section id="view-pos" class="h-full flex flex-col lg:flex-row overflow-hidden">
+                
+                <!-- LEFT COLUMN: PRODUCT INVENTORY GRID -->
+                <div class="flex-1 flex flex-col overflow-hidden p-4 border-r border-slate-800">
+                    
+                    <!-- Search & Filter Controls -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4 shrink-0">
+                        <!-- Product Search Input -->
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                            <input type="text" id="pos-search" placeholder="Search product name, SKU, or category..."
+                                class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition">
+                        </div>
+
+                        <!-- Barcode Quick Input / USB Scanner Field -->
+                        <div class="relative w-full sm:w-44 shrink-0">
+                            <i class="fa-solid fa-barcode absolute left-3 top-3 text-cyan-400 text-xs"></i>
+                            <input type="text" id="pos-barcode-quick" placeholder="Scan Barcode..."
+                                class="w-full bg-slate-900 border border-cyan-500/40 rounded-xl pl-8 pr-3 py-2 text-xs font-mono text-cyan-300 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-500 transition"
+                                title="Press Enter or scan USB barcode gun to add item directly to invoice">
+                        </div>
+
+                        <!-- Camera Scanner Button -->
+                        <button onclick="BarcodeEngine.openCameraScanner('invoice')" title="Open Camera Barcode Scanner"
+                            class="px-3.5 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition shrink-0 shadow">
+                            <i class="fa-solid fa-camera"></i>
+                            <span>Scan</span>
+                        </button>
+
+                        <!-- Category Filter Pills -->
+                        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none" id="category-pills">
+                            <button onclick="filterCategory('All')" class="cat-pill active px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">All</button>
+                            <button onclick="filterCategory('Frames')" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">Frames</button>
+                            <button onclick="filterCategory('Lenses')" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">Lenses</button>
+                            <button onclick="filterCategory('Contact Lenses')" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">Contacts</button>
+                            <button onclick="filterCategory('Accessories')" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">Accessories</button>
+                            <button onclick="filterCategory('Services')" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">Services</button>
+                        </div>
+                    </div>
+
+                    <!-- Products Grid Container -->
+                    <div class="flex-1 overflow-y-auto pr-1">
+                        <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                            <!-- Product Cards dynamically rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: SHOPPING CART & CHECKOUT PANEL -->
+                <div class="w-full lg:w-96 bg-slate-900/70 flex flex-col shrink-0 border-t lg:border-t-0 border-slate-800">
+                    
+                    <!-- Cart Header & Customer Selection -->
+                    <div class="p-4 border-b border-slate-800 space-y-3 shrink-0">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-bold text-slate-100 flex items-center gap-2">
+                                <i class="fa-solid fa-cart-shopping text-cyan-400"></i> Active Cart Order
+                            </h2>
+                            <button onclick="clearCart()" class="text-xs text-slate-400 hover:text-rose-400 transition">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Clear
+                            </button>
+                        </div>
+
+                        <!-- Customer & Prescription Quick Bar -->
+                        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <div id="cart-customer-display" class="text-xs text-slate-300 truncate font-medium">
+                                    <i class="fa-solid fa-user text-slate-500 mr-1.5"></i> Walk-in Customer
+                                </div>
+                                <button onclick="openPrescriptionModal()" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded-lg border border-slate-700 transition">
+                                    <i class="fa-solid fa-user-plus mr-1"></i> Select / Rx
+                                </button>
+                            </div>
+
+                            <!-- Attached Prescription Badge -->
+                            <div id="attached-rx-badge" class="hidden p-2 rounded-lg bg-cyan-950/60 border border-cyan-800/80 text-xs text-cyan-200 flex items-center justify-between">
+                                <div>
+                                    <div class="font-semibold flex items-center gap-1 text-[11px]">
+                                        <i class="fa-solid fa-eye text-cyan-400"></i> Attached Prescription
+                                    </div>
+                                    <div id="rx-summary-text" class="text-[10px] text-cyan-300/80">OD: -4.50 | OS: -4.75</div>
+                                </div>
+                                <button onclick="openAiRecommendationModal()" class="px-2 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded text-[10px] font-bold shadow hover:brightness-110">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI Suggest
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cart Line Items Scroll Area -->
+                    <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-2.5">
+                        <!-- Rendered Cart items -->
+                    </div>
+
+                    <!-- Cart Subtotal & Checkout Actions Footer -->
+                    <div class="p-4 border-t border-slate-800 bg-slate-900/90 space-y-3 shrink-0">
+                        <div class="space-y-1.5 text-xs text-slate-400">
+                            <div class="flex justify-between">
+                                <span>Subtotal</span>
+                                <span id="cart-subtotal" class="font-mono text-slate-200">$0.00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Est. Tax (8%)</span>
+                                <span id="cart-tax" class="font-mono text-slate-200">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-base font-bold text-white pt-2 border-t border-slate-800">
+                                <span>Total Payable</span>
+                                <span id="cart-total" class="font-mono text-cyan-400">$0.00</span>
+                            </div>
+                        </div>
+
+                        <button id="btn-proceed-checkout" onclick="openCheckoutModal()" disabled
+                            class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+                            <span>Proceed to Checkout</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+
+                </section>
+
+
+            <!-- =================================================================== -->
+            <!-- VIEW 2: SALES REPORTS DASHBOARD (STRICTLY BLOCKED FOR CASHIERS) -->
+            <!-- =================================================================== -->
+            <section id="view-reports" class="hidden h-full flex flex-col overflow-y-auto p-4 sm:p-6 space-y-6">
+                
+                <!-- Reports Top Header & Interactive Filters -->
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-cyan-400"></i> Sales & Revenue Analytics
+                        </h2>
+                        <p class="text-xs text-slate-400">Filter sales activity across dates and branches with instant export</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        
+                        <!-- Superadmin Cross-Branch Filter -->
+                        <select id="report-branch-filter" class="hidden bg-slate-950 border border-slate-700 text-xs font-semibold text-slate-200 rounded-xl px-3 py-2 focus:border-cyan-500">
+                            <!-- Populated dynamically -->
+                        </select>
+
+                        <!-- Date Preset Buttons -->
+                        <div class="flex items-center bg-slate-950 p-1 border border-slate-800 rounded-xl gap-1">
+                            <button onclick="setReportDatePreset('today')" id="preset-today" class="preset-btn px-3 py-1 text-xs font-semibold rounded-lg text-slate-300 hover:text-white transition">Today</button>
+                            <button onclick="setReportDatePreset('week')" id="preset-week" class="preset-btn active px-3 py-1 text-xs font-semibold rounded-lg text-slate-300 hover:text-white transition">This Week</button>
+                            <button onclick="setReportDatePreset('month')" id="preset-month" class="preset-btn px-3 py-1 text-xs font-semibold rounded-lg text-slate-300 hover:text-white transition">This Month</button>
+                        </div>
+
+                        <!-- Custom Date Pickers -->
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <input type="date" id="report-date-start" class="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:border-cyan-500">
+                            <span class="text-slate-500">to</span>
+                            <input type="date" id="report-date-end" class="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:border-cyan-500">
+                            <button onclick="fetchSalesReportData()" class="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl border border-slate-700 transition">
+                                <i class="fa-solid fa-filter"></i>
+                            </button>
+                        </div>
+
+                        <!-- Export Action Buttons -->
+                        <div class="flex items-center gap-2 ml-auto xl:ml-2">
+                            <button onclick="exportToExcel()" class="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-file-excel"></i> Export Excel
+                            </button>
+                            <button onclick="exportToPDF()" class="px-3 py-2 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-file-pdf"></i> Export PDF
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- KPI SUMMARY CARDS GRID -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Today's Revenue</div>
+                        <div id="kpi-today-sales" class="text-2xl font-bold font-mono text-cyan-400 my-2">$0.00</div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-calendar-day text-cyan-500"></i> Daily Sales Volume
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Weekly Revenue</div>
+                        <div id="kpi-weekly-sales" class="text-2xl font-bold font-mono text-emerald-400 my-2">$0.00</div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-chart-simple text-emerald-500"></i> Last 7 Days Total
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Monthly Revenue</div>
+                        <div id="kpi-monthly-sales" class="text-2xl font-bold font-mono text-blue-400 my-2">$0.00</div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-calendar-days text-blue-500"></i> Current Month Total
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Orders</div>
+                        <div id="kpi-total-orders" class="text-2xl font-bold font-mono text-purple-400 my-2">0</div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-receipt text-purple-500"></i> Completed Transactions
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Avg Order Value</div>
+                        <div id="kpi-aov" class="text-2xl font-bold font-mono text-amber-400 my-2">$0.00</div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-1">
+                            <i class="fa-solid fa-calculator text-amber-500"></i> AOV Metric
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- SALES DATA TABLE CONTAINER -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> Order Transactions Log
+                        </h3>
+                        <span id="table-record-count" class="text-xs text-slate-400 font-mono">0 records found</span>
+                    </div>
+
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 sticky top-0">
+                                <tr>
+                                    <th class="py-3 px-4">Order ID</th>
+                                    <th class="py-3 px-4">Date & Time</th>
+                                    <th class="py-3 px-4">Customer</th>
+                                    <th class="py-3 px-4">Branch</th>
+                                    <th class="py-3 px-4 text-center">Items</th>
+                                    <th class="py-3 px-4">Payment</th>
+                                    <th class="py-3 px-4 text-right">Total Amount</th>
+                                    <th class="py-3 px-4">Cashier</th>
+                                    <th class="py-3 px-4 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body" class="divide-y divide-slate-800/60 text-slate-300 font-medium">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- =================================================================== -->
+            <!-- VIEW 3: INVENTORY & PRODUCT MANAGEMENT VIEW -->
+            <!-- =================================================================== -->
+            <section id="view-inventory" class="hidden h-full flex flex-col overflow-y-auto p-4 sm:p-6 space-y-6">
+                
+                <div class="flex items-center justify-between bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-boxes-stacked text-cyan-400"></i> Branch Inventory & Products
+                        </h2>
+                        <p class="text-xs text-slate-400">Add, update, and manage frame, lens, and accessory inventory</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Quick Barcode Input for Inventory -->
+                        <div class="relative w-44">
+                            <i class="fa-solid fa-barcode absolute left-3 top-2.5 text-amber-400 text-xs"></i>
+                            <input type="text" id="inventory-barcode-quick" placeholder="Scan SKU / Barcode..."
+                                class="w-full bg-slate-950 border border-amber-500/40 rounded-xl pl-8 pr-3 py-1.5 text-xs font-mono text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+                                title="Scan barcode or press Enter to quickly update stock & price">
+                        </div>
+                        <button onclick="BarcodeEngine.openCameraScanner('inventory')" class="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-camera"></i> Scan to Update
+                        </button>
+                        <button onclick="syncMasterCatalogToBranch()" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-bolt text-amber-400"></i> Apply All Catalog Products
+                        </button>
+                        <button onclick="openProductModal()" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition hover:brightness-110">
+                            <i class="fa-solid fa-plus"></i> Add New Product
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> Store Products Catalog
+                        </h3>
+                        <span id="inventory-record-count" class="text-xs text-slate-400 font-mono">0 products listed</span>
+                    </div>
+
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 sticky top-0">
+                                <tr>
+                                    <th class="py-3.5 px-4">SKU</th>
+                                    <th class="py-3.5 px-4">Product Name</th>
+                                    <th class="py-3.5 px-4">Category</th>
+                                    <th class="py-3.5 px-4">Price</th>
+                                    <th class="py-3.5 px-4">Stock Level</th>
+                                    <th class="py-3.5 px-4">Branch</th>
+                                    <th class="py-3.5 px-4 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body" class="divide-y divide-slate-800/60 text-slate-300 font-medium">
+                                <!-- Dynamic inventory rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- =================================================================== -->
+            <!-- VIEW 4: SUPERADMIN BRANCH MANAGEMENT VIEW -->
+            <!-- =================================================================== -->
+            <section id="view-branches" class="hidden h-full flex flex-col overflow-y-auto p-4 sm:p-6 space-y-6">
+                
+                <div class="flex items-center justify-between bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-store text-cyan-400"></i> Branch Store Management
+                        </h2>
+                        <p class="text-xs text-slate-400">Create, configure, and manage store branches across your chain</p>
+                    </div>
+
+                    <button onclick="openBranchModal()" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition hover:brightness-110">
+                        <i class="fa-solid fa-plus"></i> Create New Branch
+                    </button>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-cyan-400"></i> Active Branches List
+                        </h3>
+                        <span id="branch-record-count" class="text-xs text-slate-400 font-mono">0 branches active</span>
+                    </div>
+
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 sticky top-0">
+                                <tr>
+                                    <th class="py-3.5 px-4">Code</th>
+                                    <th class="py-3.5 px-4">Branch Name</th>
+                                    <th class="py-3.5 px-4">Address</th>
+                                    <th class="py-3.5 px-4">Phone</th>
+                                    <th class="py-3.5 px-4">Created Date</th>
+                                    <th class="py-3.5 px-4 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="branches-table-body" class="divide-y divide-slate-800/60 text-slate-300 font-medium">
+                                <!-- Dynamic branch rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- =================================================================== -->
+            <!-- VIEW 5: SUPERADMIN USER & ROLE MANAGEMENT VIEW -->
+            <!-- =================================================================== -->
+            <section id="view-users" class="hidden h-full flex flex-col overflow-y-auto p-4 sm:p-6 space-y-6">
+                
+                <div class="flex items-center justify-between bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-users-gear text-cyan-400"></i> User Account & Role Management (RBAC)
+                        </h2>
+                        <p class="text-xs text-slate-400">Register staff user accounts, update roles, and reassign branch access</p>
+                    </div>
+
+                    <button onclick="openUserModal()" class="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition hover:brightness-110">
+                        <i class="fa-solid fa-user-plus"></i> Create Staff Account
+                    </button>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-1 flex flex-col">
+                    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-users text-cyan-400"></i> Registered Staff Users
+                        </h3>
+                        <span id="user-record-count" class="text-xs text-slate-400 font-mono">0 staff accounts registered</span>
+                    </div>
+
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 sticky top-0">
+                                <tr>
+                                    <th class="py-3.5 px-4">Full Name</th>
+                                    <th class="py-3.5 px-4">Email Address</th>
+                                    <th class="py-3.5 px-4">Assigned Role</th>
+                                    <th class="py-3.5 px-4">Assigned Store Branch</th>
+                                    <th class="py-3.5 px-4">Created Date</th>
+                                    <th class="py-3.5 px-4 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-slate-800/60 text-slate-300 font-medium">
+                                <!-- Dynamic user rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 1: OPTICAL PRESCRIPTION & CUSTOMER SELECTION -->
+    <!-- =================================================================== -->
+    <div id="modal-prescription" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-eye text-cyan-400"></i> Optical Prescription & Customer Link
+                </h3>
+                <button onclick="closeModal('modal-prescription')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-6">
+                <div class="space-y-3">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Select Existing Customer</label>
+                    <div class="flex gap-2">
+                        <select id="rx-customer-select" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:border-cyan-500">
+                        </select>
+                        <button onclick="toggleNewCustomerForm()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold rounded-xl border border-slate-700 whitespace-nowrap">
+                            <i class="fa-solid fa-plus mr-1"></i> New Customer
+                        </button>
+                    </div>
+
+                    <div id="new-customer-form" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800 mt-2">
+                        <input type="text" id="new-cust-name" placeholder="Full Name" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                        <input type="text" id="new-cust-phone" placeholder="Phone Number" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white">
+                        <input type="email" id="new-cust-email" placeholder="Email (Optional)" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white sm:col-span-2">
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Refraction Data</label>
+                        <span class="text-[10px] text-cyan-400 font-mono">OD (Right Eye) / OS (Left Eye)</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-center text-xs border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="py-2 px-2 text-left">Eye</th>
+                                    <th class="py-2 px-2">Sph (Sphere)</th>
+                                    <th class="py-2 px-2">Cyl (Cylinder)</th>
+                                    <th class="py-2 px-2">Axis (°)</th>
+                                    <th class="py-2 px-2">Add (Addition)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/50">
+                                <tr>
+                                    <td class="py-2.5 px-2 text-left font-bold text-cyan-400">OD (Right)</td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-od-sph" value="-4.50" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-od-cyl" value="-1.25" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="1" min="0" max="180" id="rx-od-axis" value="90" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-od-add" value="2.00" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2.5 px-2 text-left font-bold text-blue-400">OS (Left)</td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-os-sph" value="-4.75" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-os-cyl" value="-1.50" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="1" min="0" max="180" id="rx-os-axis" value="85" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                    <td class="px-1"><input type="number" step="0.25" id="rx-os-add" value="2.00" class="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-center font-mono text-white"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">PD (Pupillary Distance mm)</label>
+                            <input type="number" step="0.5" id="rx-pd" value="64.0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-mono">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Optometrist Notes</label>
+                            <input type="text" id="rx-notes" placeholder="e.g. Blue-cut filter recommended" value="High myopia. Recommend 1.67 High Index lens." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-end gap-3">
+                <button onclick="closeModal('modal-prescription')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="savePrescriptionAndAttach()" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-check mr-1"></i> Save & Attach to Cart
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 2: AI OPTICAL RECOMMENDATION ENGINE -->
+    <!-- =================================================================== -->
+    <div id="modal-ai-recommendation" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i> AI Lens & Index Recommendations
+                </h3>
+                <button onclick="closeModal('modal-ai-recommendation')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4">
+                
+                <div class="p-3 bg-cyan-950/40 border border-cyan-800/60 rounded-xl text-xs text-cyan-200 flex items-start gap-3">
+                    <i class="fa-solid fa-brain text-cyan-400 text-lg mt-0.5"></i>
+                    <div>
+                        <div class="font-semibold text-cyan-300">Prescription Clinical Analysis</div>
+                        <div id="ai-clinical-summary" class="text-[11px] text-cyan-200/80 mt-0.5">High Myopia detected (|Sph| >= 4.00). High lens index recommended for weight reduction and thinness.</div>
+                    </div>
+                </div>
+
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Matched Inventory Products</h4>
+                <div id="ai-recommendations-list" class="space-y-3">
+                </div>
+
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex justify-end">
+                <button onclick="closeModal('modal-ai-recommendation')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Done</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 3: CHECKOUT & PAYMENT -->
+    <!-- =================================================================== -->
+    <div id="modal-checkout" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-credit-card text-cyan-400"></i> Payment Checkout
+                </h3>
+                <button onclick="closeModal('modal-checkout')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-5">
+                
+                <div class="text-center p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                    <span class="text-xs font-semibold text-slate-400 uppercase">Total Amount Due</span>
+                    <div id="checkout-total-display" class="text-3xl font-bold font-mono text-cyan-400 mt-1">$0.00</div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Select Payment Method</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="selectPaymentMethod('Cash')" id="pay-Cash" class="pay-method-btn active p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-money-bill-wave text-emerald-400"></i> Cash
+                        </button>
+                        <button onclick="selectPaymentMethod('Credit Card')" id="pay-Credit Card" class="pay-method-btn p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-credit-card text-blue-400"></i> Credit Card
+                        </button>
+                        <button onclick="selectPaymentMethod('Mobile Banking')" id="pay-Mobile Banking" class="pay-method-btn p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-mobile-screen-button text-purple-400"></i> Mobile App
+                        </button>
+                        <button onclick="selectPaymentMethod('QR Code')" id="pay-QR Code" class="pay-method-btn p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-qrcode text-amber-400"></i> QR Code
+                        </button>
+                    </div>
+                </div>
+
+                <div id="cash-tendered-block" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Cash Tendered ($)</label>
+                        <input type="number" step="0.01" id="cash-tendered" placeholder="0.00" oninput="calculateChange()"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-lg font-mono text-white focus:border-cyan-500">
+                    </div>
+                    <div class="flex justify-between items-center text-sm font-semibold p-2 bg-slate-950/50 rounded-lg">
+                        <span class="text-slate-400">Change Due:</span>
+                        <span id="cash-change-display" class="font-mono text-emerald-400 text-base">$0.00</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+                <button onclick="closeModal('modal-checkout')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="processOrderCheckout()" id="btn-complete-order"
+                    class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20 flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i> Complete & Print Receipt
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 4: 80MM PRINTABLE THERMAL RECEIPT MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-receipt" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+            
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between no-print">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-cyan-400"></i> Thermal Receipt Preview
+                </h3>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.print()" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-lg">
+                        <i class="fa-solid fa-print mr-1"></i> Print
+                    </button>
+                    <button onclick="closeModal('modal-receipt')" class="text-slate-400 hover:text-white transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-4 overflow-y-auto bg-slate-950 flex justify-center">
+                
+                <div id="thermal-receipt" class="receipt-paper">
+                    
+                    <div class="receipt-header">
+                        <div class="receipt-title">LENS & VISION OPTICAL</div>
+                        <div id="rc-branch-name" class="receipt-subtitle">Downtown Central Branch</div>
+                        <div id="rc-branch-address" class="receipt-[10px]">101 Grand Avenue, Suite 400</div>
+                        <div id="rc-branch-phone" class="receipt-[10px]">Tel: +1 (555) 019-2831</div>
+                        <div class="receipt-divider">================================</div>
+                    </div>
+
+                    <div class="receipt-meta space-y-0.5">
+                        <div class="flex justify-between">
+                            <span>Order No:</span>
+                            <span id="rc-order-number" class="font-bold">ORD-20260724-001</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Date:</span>
+                            <span id="rc-date-time">2026-07-24 14:32</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Cashier:</span>
+                            <span id="rc-cashier">Sophia Turner</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Customer:</span>
+                            <span id="rc-customer">John Doe</span>
+                        </div>
+                    </div>
+
+                    <div class="receipt-divider">--------------------------------</div>
+
+                    <div id="rc-prescription-block" class="hidden my-2">
+                        <div class="font-bold text-center underline mb-1">OPTICAL PRESCRIPTION</div>
+                        <table class="w-full text-[10px] text-center border-collapse">
+                            <thead>
+                                <tr class="border-b border-black">
+                                    <th class="text-left">Eye</th>
+                                    <th>Sph</th>
+                                    <th>Cyl</th>
+                                    <th>Axis</th>
+                                    <th>Add</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-left font-bold">OD</td>
+                                    <td id="rc-od-sph">-4.50</td>
+                                    <td id="rc-od-cyl">-1.25</td>
+                                    <td id="rc-od-axis">90°</td>
+                                    <td id="rc-od-add">+2.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-bold">OS</td>
+                                    <td id="rc-os-sph">-4.75</td>
+                                    <td id="rc-os-cyl">-1.50</td>
+                                    <td id="rc-os-axis">85°</td>
+                                    <td id="rc-os-add">+2.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="text-[9px] mt-1">PD: <span id="rc-pd">64.0</span> mm</div>
+                        <div class="receipt-divider">--------------------------------</div>
+                    </div>
+
+                    <div class="font-bold mb-1">PURCHASED ITEMS</div>
+                    <div id="rc-items-list" class="space-y-1">
+                    </div>
+
+                    <div class="receipt-divider">--------------------------------</div>
+
+                    <div class="space-y-0.5 text-right font-mono">
+                        <div class="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span id="rc-subtotal">$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Tax (8%):</span>
+                            <span id="rc-tax">$0.00</span>
+                        </div>
+                        <div class="flex justify-between text-sm font-bold border-t border-black pt-1">
+                            <span>TOTAL:</span>
+                            <span id="rc-total">$0.00</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] pt-1">
+                            <span>Payment Method:</span>
+                            <span id="rc-pay-method">Cash</span>
+                        </div>
+                        <div id="rc-cash-row" class="flex justify-between text-[10px]">
+                            <span>Tendered / Change:</span>
+                            <span id="rc-cash-change">$400.00 / $25.00</span>
+                        </div>
+                    </div>
+
+                    <div class="receipt-divider">================================</div>
+
+                    <div class="receipt-footer text-center">
+                        <div>*** THANK YOU FOR YOUR VISIT ***</div>
+                        <div class="text-[9px] mt-0.5">Please retain receipt for warranty & adjustments</div>
+                        <div class="font-mono text-[10px] tracking-widest mt-2">||| | ||||| ||| ||||| |||</div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 5: PRODUCT & INVENTORY FORM MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-product" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="modal-product-title" class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-boxes-stacked text-cyan-400"></i> Add New Product to Branch
+                </h3>
+                <button onclick="closeModal('modal-product')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Product Name</label>
+                        <input type="text" id="prod-name" placeholder="e.g. Ray-Ban Aviator Classic" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">SKU Code</label>
+                        <input type="text" id="prod-sku" placeholder="PROD-1001" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-cyan-400 focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Category</label>
+                        <select id="prod-category" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 focus:border-cyan-500">
+                            <option value="Frames">Frames</option>
+                            <option value="Lenses">Lenses</option>
+                            <option value="Contact Lenses">Contact Lenses</option>
+                            <option value="Accessories">Accessories</option>
+                            <option value="Services">Services</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Unit Price ($)</label>
+                        <input type="number" step="0.01" id="prod-price" placeholder="150.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Initial Stock Quantity</label>
+                        <input type="number" id="prod-stock" placeholder="25" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-white focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Prescription Type</label>
+                        <select id="prod-rx-type" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 focus:border-cyan-500">
+                            <option value="Frame Only">Frame Only</option>
+                            <option value="Single Vision">Single Vision</option>
+                            <option value="Single Vision High Index">Single Vision High Index</option>
+                            <option value="Progressive">Progressive</option>
+                            <option value="Photochromic">Photochromic</option>
+                            <option value="Contact Lens">Contact Lens</option>
+                            <option value="Service">Service</option>
+                            <option value="N/A">N/A</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Assigned Store Branch</label>
+                        <select id="prod-branch-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-cyan-300 focus:border-cyan-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Product Photo URL</label>
+                        <input type="url" id="prod-image-url" placeholder="e.g. https://images.unsplash.com/photo-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-cyan-300 font-mono focus:border-cyan-500">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Description</label>
+                        <textarea id="prod-desc" rows="2" placeholder="Optional product specifications or frame details..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+                <button onclick="closeModal('modal-product')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="saveProductData()" class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-check mr-1"></i> Save Product
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 6: QUICK ADJUST STOCK & PRICE MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-adjust-stock" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="adjust-prod-title" class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-amber-400"></i> Adjust Stock Quantity & Price
+                </h3>
+                <button onclick="closeModal('modal-adjust-stock')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Unit Price ($)</label>
+                    <input type="number" step="0.01" id="adjust-price" placeholder="150.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base font-mono text-emerald-400 focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Stock Quantity</label>
+                    <input type="number" id="adjust-stock" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base font-mono text-white focus:border-cyan-500">
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+                <button onclick="closeModal('modal-adjust-stock')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="saveQuickStockPrice()" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-emerald-500 text-slate-950 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-check mr-1"></i> Update Quantity & Price
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 7: SUPERADMIN BRANCH FORM MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-branch" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="modal-branch-title" class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-store text-cyan-400"></i> Create New Branch
+                </h3>
+                <button onclick="closeModal('modal-branch')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Branch Name</label>
+                    <input type="text" id="branch-name" placeholder="e.g. Northside Optical Branch" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Branch Code</label>
+                    <input type="text" id="branch-code" placeholder="e.g. BR-NS04" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono text-cyan-400 focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Street Address</label>
+                    <input type="text" id="branch-address" placeholder="e.g. 780 North Boulevard" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Contact Phone</label>
+                    <input type="text" id="branch-phone" placeholder="e.g. +1 (555) 019-9988" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+                <button onclick="closeModal('modal-branch')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="saveBranchData()" class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-check mr-1"></i> Save Branch
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 8: SUPERADMIN STAFF USER FORM MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-user" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="modal-user-title" class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus text-cyan-400"></i> Create Staff Account
+                </h3>
+                <button onclick="closeModal('modal-user')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Full Name</label>
+                    <input type="text" id="user-fullname" placeholder="e.g. Alex Morgan" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Email Address</label>
+                    <input type="email" id="user-email" placeholder="alex.morgan@optical.com" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+                <div id="user-pass-block">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Account Password</label>
+                    <input type="password" id="user-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:border-cyan-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Role Permission</label>
+                        <select id="user-role" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-cyan-300 focus:border-cyan-500">
+                            <option value="cashier">Cashier (POS Only)</option>
+                            <option value="admin">Branch Admin</option>
+                            <option value="superadmin">Superadmin (Full Access)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Assigned Store</label>
+                        <select id="user-branch-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 focus:border-cyan-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+                <button onclick="closeModal('modal-user')" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="saveUserData()" class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-check mr-1"></i> Save Staff Account
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- =================================================================== -->
+    <!-- MODAL 9: CAMERA BARCODE SCANNER MODAL -->
+    <!-- =================================================================== -->
+    <div id="modal-barcode-scanner" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-2">
+                <div class="flex-1">
+                    <h3 id="scanner-modal-title" class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-barcode text-cyan-400"></i> Scan Barcode
+                    </h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span id="scanner-mode-badge" class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
+                            POS Invoice Mode
+                        </span>
+                        <!-- Camera Selector Dropdown -->
+                        <select id="scanner-camera-select" class="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded-lg px-2 py-0.5 focus:border-cyan-500 max-w-[180px] truncate" title="Select camera device">
+                            <option value="">Detecting cameras...</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="BarcodeEngine.stopCameraScanner()" class="text-slate-400 hover:text-white transition p-1 shrink-0">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Viewport Body -->
+            <div class="p-6 space-y-4 text-center">
+                <!-- Camera Feed Box -->
+                <div class="relative w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center shadow-inner" id="scanner-video-box">
+                    <video id="barcode-video-feed" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                    <div id="barcode-reader-viewport" class="hidden"></div>
+                    <!-- Scanner Laser Overlay Line -->
+                    <div class="scanner-laser-line pointer-events-none"></div>
+                </div>
+
+                <div id="scanner-status-text" class="text-xs text-slate-400 font-medium h-5">
+                    Point camera at 1D Barcode or QR/SKU Code...
+                </div>
+
+                <!-- Manual Code Entry Fallback inside Modal -->
+                <div class="pt-3 border-t border-slate-800 flex items-center gap-2">
+                    <input type="text" id="modal-manual-barcode-input" placeholder="Or type SKU/Barcode manually (e.g. FRM-RB-001)..."
+                        class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                        onkeydown="if(event.key==='Enter') { const code = this.value.trim(); if(code) { BarcodeEngine.processScannedCode(code); this.value = ''; } }">
+                    <button onclick="
+                        const input = document.getElementById('modal-manual-barcode-input');
+                        const code = input.value.trim();
+                        if(code) { BarcodeEngine.processScannedCode(code); input.value = ''; }
+                    " class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-bold transition">
+                        Submit
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 border-t border-slate-800 bg-slate-950 flex items-center justify-between text-xs text-slate-500">
+                <button onclick="BarcodeEngine.openSampleBarcodesModal()" class="text-cyan-400 hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-vial"></i> Sample Barcodes Test Sheet
+                </button>
+                <button onclick="BarcodeEngine.stopCameraScanner()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition">
+                    Done / Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- APPLICATION JS MODULE SCRIPTS -->
+    <script src="env-config.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ai-engine.js"></script>
+    <script src="js/reports.js"></script>
+    <script src="js/admin-management.js"></script>
+    <script src="js/barcode-engine.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
