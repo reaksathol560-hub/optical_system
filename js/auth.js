@@ -2,6 +2,7 @@
  * =============================================================================
  * AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC) CONTROLLER
  * =============================================================================
+ * All authentication is handled exclusively through Supabase.
  */
 
 const AuthManager = {
@@ -31,7 +32,7 @@ const AuthManager = {
         // Superadmin can have a custom selected branch stored in session or localStorage
         if (user.role === 'superadmin') {
             const selectedBranch = localStorage.getItem('optical_pos_selected_branch_id');
-            return selectedBranch || user.branch_id || 'br-downtown';
+            return selectedBranch || user.branch_id;
         }
 
         return user.branch_id;
@@ -49,81 +50,63 @@ const AuthManager = {
     },
 
     /**
-     * Authenticate user with Supabase or Mock accounts
+     * Authenticate user with Supabase
      */
     async login(email, password) {
-        if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-            try {
-                // 1. Try Supabase Auth Engine first
-                const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-                    email,
-                    password
-                });
+        if (!isSupabaseConfigured() || !window.supabaseClient) {
+            return { success: false, message: 'Supabase is not configured. Please set up your database connection.' };
+        }
 
-                if (!error && data.user) {
-                    const { data: profile } = await window.supabaseClient
-                        .from('profiles')
-                        .select('*, branches(*)')
-                        .eq('id', data.user.id)
-                        .single();
+        try {
+            // 1. Try Supabase Auth Engine first
+            const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+                email,
+                password
+            });
 
-                    if (profile) {
-                        const sessionUser = {
-                            id: profile.id,
-                            email: profile.email,
-                            full_name: profile.full_name,
-                            role: profile.role,
-                            branch_id: profile.branch_id,
-                            branch_name: profile.branches ? profile.branches.name : 'All Branches'
-                        };
-                        localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionUser));
-                        return { success: true, user: sessionUser };
-                    }
-                }
-
-                // 2. Direct profiles table query check
-                const { data: tableProfile, error: profileErr } = await window.supabaseClient
+            if (!error && data.user) {
+                const { data: profile } = await window.supabaseClient
                     .from('profiles')
                     .select('*, branches(*)')
-                    .eq('email', email)
-                    .eq('password', password)
+                    .eq('id', data.user.id)
                     .single();
 
-                if (!profileErr && tableProfile) {
+                if (profile) {
                     const sessionUser = {
-                        id: tableProfile.id,
-                        email: tableProfile.email,
-                        full_name: tableProfile.full_name,
-                        role: tableProfile.role,
-                        branch_id: tableProfile.branch_id,
-                        branch_name: tableProfile.branches ? tableProfile.branches.name : 'Main Store'
+                        id: profile.id,
+                        email: profile.email,
+                        full_name: profile.full_name,
+                        role: profile.role,
+                        branch_id: profile.branch_id,
+                        branch_name: profile.branches ? profile.branches.name : 'All Branches'
                     };
                     localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionUser));
                     return { success: true, user: sessionUser };
                 }
-            } catch (err) {
-                console.warn('Supabase authentication check warning:', err);
             }
-        }
 
-        // Local Mock Authentication Fallback
-        const profiles = window.MockStore ? window.MockStore.getProfiles() : [];
-        const branches = window.MockStore ? window.MockStore.getBranches() : [];
-        
-        const matchedProfile = profiles.find(p => p.email.toLowerCase() === email.toLowerCase() && p.password === password);
+            // 2. Direct profiles table query check (for custom auth)
+            const { data: tableProfile, error: profileErr } = await window.supabaseClient
+                .from('profiles')
+                .select('*, branches(*)')
+                .eq('email', email)
+                .eq('password', password)
+                .single();
 
-        if (matchedProfile) {
-            const branch = branches.find(b => b.id === matchedProfile.branch_id);
-            const sessionUser = {
-                id: matchedProfile.id,
-                email: matchedProfile.email,
-                full_name: matchedProfile.full_name,
-                role: matchedProfile.role,
-                branch_id: matchedProfile.branch_id,
-                branch_name: branch ? branch.name : 'Main Store'
-            };
-            localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionUser));
-            return { success: true, user: sessionUser };
+            if (!profileErr && tableProfile) {
+                const sessionUser = {
+                    id: tableProfile.id,
+                    email: tableProfile.email,
+                    full_name: tableProfile.full_name,
+                    role: tableProfile.role,
+                    branch_id: tableProfile.branch_id,
+                    branch_name: tableProfile.branches ? tableProfile.branches.name : 'Main Store'
+                };
+                localStorage.setItem(this.SESSION_KEY, JSON.stringify(sessionUser));
+                return { success: true, user: sessionUser };
+            }
+        } catch (err) {
+            console.warn('Supabase authentication error:', err);
         }
 
         return { success: false, message: 'Invalid email or password. Please check your credentials.' };
@@ -133,7 +116,7 @@ const AuthManager = {
      * Terminate user session and clear storage
      */
     async logout() {
-        if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
+        if (isSupabaseConfigured() && window.supabaseClient) {
             try {
                 await window.supabaseClient.auth.signOut();
             } catch (e) {
@@ -158,10 +141,10 @@ const AuthManager = {
     },
 
     /**
-     * Fetch branches dynamically from Supabase or MockStore
+     * Fetch branches dynamically from Supabase
      */
     async getBranchesAsync() {
-        if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
+        if (isSupabaseConfigured() && window.supabaseClient) {
             try {
                 const { data, error } = await window.supabaseClient
                     .from('branches')
@@ -174,7 +157,7 @@ const AuthManager = {
                 console.warn('Failed to fetch branches from Supabase:', err);
             }
         }
-        return window.MockStore ? window.MockStore.getBranches() : [];
+        return [];
     },
 
     /**

@@ -2,6 +2,7 @@
  * =============================================================================
  * POS TERMINAL CORE APPLICATION BUSINESS LOGIC
  * =============================================================================
+ * All data operations use Supabase exclusively via SupabaseDB helper.
  */
 
 let activeProducts = [];
@@ -130,12 +131,12 @@ function switchTab(tab) {
 }
 
 /**
- * Load product inventory for currently active branch
+ * Load product inventory for currently active branch from Supabase
  */
 async function loadBranchProducts() {
     const branchId = AuthManager.getActiveBranchId();
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
+    if (window.supabaseClient) {
         try {
             const { data, error } = await window.supabaseClient
                 .from('products')
@@ -144,16 +145,18 @@ async function loadBranchProducts() {
 
             if (!error && data) {
                 activeProducts = data;
-                renderProductsGrid();
-                return;
+            } else {
+                activeProducts = [];
+                console.warn('Failed to load products:', error?.message);
             }
         } catch (err) {
-            console.warn('Failed to load products from Supabase, fallback to MockStore:', err);
+            console.error('Failed to load products from Supabase:', err);
+            activeProducts = [];
         }
+    } else {
+        activeProducts = [];
     }
 
-    // MockStore Fallback
-    activeProducts = window.MockStore ? window.MockStore.getProducts(branchId) : [];
     renderProductsGrid();
 }
 
@@ -429,14 +432,14 @@ function renderCartUI() {
 }
 
 /**
- * Open Customer & Prescription Modal
+ * Open Customer & Prescription Modal — loads customers from Supabase
  */
-function openPrescriptionModal() {
+async function openPrescriptionModal() {
     const modal = document.getElementById('modal-prescription');
     const custSelect = document.getElementById('rx-customer-select');
 
-    // Load customer dropdown
-    const customers = window.MockStore ? window.MockStore.getCustomers() : [];
+    // Load customer dropdown from Supabase
+    const customers = await SupabaseDB.getCustomers();
     custSelect.innerHTML = `
         <option value="">-- Select Existing Customer --</option>
         ${customers.map(c => `<option value="${c.id}">${c.full_name} (${c.phone})</option>`).join('')}
@@ -458,9 +461,9 @@ function toggleNewCustomerForm() {
 }
 
 /**
- * Save Customer & Attach Prescription to Cart
+ * Save Customer & Attach Prescription to Cart — writes to Supabase
  */
-function savePrescriptionAndAttach() {
+async function savePrescriptionAndAttach() {
     const custSelect = document.getElementById('rx-customer-select');
     const newName = document.getElementById('new-cust-name').value.trim();
     const newPhone = document.getElementById('new-cust-phone').value.trim();
@@ -469,14 +472,14 @@ function savePrescriptionAndAttach() {
     let customer = null;
 
     if (newName && newPhone) {
-        // Create new customer
-        customer = window.MockStore.addCustomer({
+        // Create new customer in Supabase
+        customer = await SupabaseDB.addCustomer({
             full_name: newName,
             phone: newPhone,
             email: newEmail
         });
     } else if (custSelect.value) {
-        const customers = window.MockStore.getCustomers();
+        const customers = await SupabaseDB.getCustomers();
         customer = customers.find(c => c.id === custSelect.value);
     }
 
@@ -498,7 +501,10 @@ function savePrescriptionAndAttach() {
     };
 
     if (customer) {
-        window.MockStore.addPrescription(attachedPrescription);
+        const savedRx = await SupabaseDB.addPrescription(attachedPrescription);
+        if (savedRx) {
+            attachedPrescription = savedRx;
+        }
     }
 
     renderCartUI();
@@ -604,7 +610,7 @@ function calculateChange() {
 }
 
 /**
- * Complete Order & Save Transaction
+ * Complete Order & Save Transaction to Supabase
  */
 async function processOrderCheckout() {
     if (cartItems.length === 0) return;
@@ -634,28 +640,15 @@ async function processOrderCheckout() {
 
     let completedOrder = null;
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            // Insert Order
-            const { data: newOrder, error: orderErr } = await window.supabaseClient
-                .from('orders')
-                .insert([{ ...orderData, order_number: 'ORD-' + Date.now().toString().slice(-8) }])
-                .select()
-                .single();
-
-            if (!orderErr && newOrder) {
-                const itemsToInsert = orderItemsData.map(i => ({ ...i, order_id: newOrder.id }));
-                await window.supabaseClient.from('order_items').insert(itemsToInsert);
-                completedOrder = newOrder;
-            }
-        } catch (err) {
-            console.warn('Supabase checkout failed, fallback to MockStore:', err);
-        }
+    // Save order to Supabase
+    const result = await SupabaseDB.saveOrder(orderData, orderItemsData);
+    if (result) {
+        completedOrder = result.order;
     }
 
     if (!completedOrder) {
-        const result = window.MockStore.saveOrder(orderData, orderItemsData);
-        completedOrder = result.order;
+        alert('Failed to save order. Please check your database connection and try again.');
+        return;
     }
 
     activeOrderForReceipt = {
@@ -683,18 +676,20 @@ async function processOrderCheckout() {
 }
 
 /**
- * Render 80mm Printable Thermal Receipt
+ * Render 80mm Printable Thermal Receipt — fetches branch from Supabase
  */
-function renderThermalReceipt(orderReceiptData) {
+async function renderThermalReceipt(orderReceiptData) {
     if (!orderReceiptData) return;
 
     const { order, items, customer, prescription, cashier, cashTendered, changeDue } = orderReceiptData;
-    const branches = window.MockStore ? window.MockStore.getBranches() : [];
-    const branch = branches.find(b => b.id === order.branch_id) || { name: 'Downtown Branch', address: '101 Grand Ave', phone: '+1 555-019-2831' };
+
+    // Fetch branch info from Supabase
+    const branches = await SupabaseDB.getBranches();
+    const branch = branches.find(b => b.id === order.branch_id) || { name: 'Branch', address: '', phone: '' };
 
     document.getElementById('rc-branch-name').textContent = branch.name;
-    document.getElementById('rc-branch-address').textContent = branch.address;
-    document.getElementById('rc-branch-phone').textContent = `Tel: ${branch.phone}`;
+    document.getElementById('rc-branch-address').textContent = branch.address || '';
+    document.getElementById('rc-branch-phone').textContent = branch.phone ? `Tel: ${branch.phone}` : '';
 
     document.getElementById('rc-order-number').textContent = order.order_number;
     document.getElementById('rc-date-time').textContent = new Date(order.created_at || Date.now()).toLocaleString();
@@ -822,4 +817,3 @@ function scanBarcodeToCart(scannedSku) {
 }
 
 window.scanBarcodeToCart = scanBarcodeToCart;
-

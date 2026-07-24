@@ -2,10 +2,17 @@
  * =============================================================================
  * SALES REPORTING MODULE & CLIENT-SIDE EXPORTS (EXCEL & PDF)
  * =============================================================================
+ * All data is fetched from Supabase exclusively.
  */
 
 let currentFilteredOrders = [];
 let activeReportBranchId = 'ALL';
+
+// Cache for report lookups (fetched from Supabase)
+let reportCacheBranches = [];
+let reportCacheCustomers = [];
+let reportCacheProfiles = [];
+let reportCacheOrderItems = [];
 
 /**
  * Initialize Reports Module
@@ -31,7 +38,7 @@ async function populateReportBranchFilter() {
         if (!branches || branches.length === 0) {
             branches = typeof AuthManager.getBranchesAsync === 'function' 
                 ? await AuthManager.getBranchesAsync() 
-                : (window.MockStore ? window.MockStore.getBranches() : []);
+                : [];
         }
 
         branchFilter.innerHTML = `
@@ -93,7 +100,7 @@ function formatDateForInput(date) {
 }
 
 /**
- * Fetch Sales Orders and Calculate Analytics KPI Aggregate Cards
+ * Fetch Sales Orders from Supabase and Calculate Analytics KPI Aggregate Cards
  */
 async function fetchSalesReportData() {
     const user = AuthManager.getCurrentUser();
@@ -107,7 +114,7 @@ async function fetchSalesReportData() {
 
     let allOrders = [];
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
+    if (window.supabaseClient) {
         try {
             let query = window.supabaseClient.from('orders').select('*');
 
@@ -123,20 +130,22 @@ async function fetchSalesReportData() {
 
             if (!error && data) {
                 allOrders = data;
+            } else {
+                console.warn('fetchSalesReportData error:', error?.message);
             }
         } catch (err) {
-            console.warn('Supabase reports fetch failed, fallback to MockStore:', err);
+            console.error('Reports fetch error:', err);
         }
-    }
 
-    if (allOrders.length === 0 && window.MockStore) {
-        const targetBranch = user.role !== 'superadmin' ? AuthManager.getActiveBranchId() : activeReportBranchId;
-        const mockOrders = window.MockStore.getOrders(targetBranch === 'ALL' ? null : targetBranch);
-        
-        allOrders = mockOrders.filter(o => {
-            const orderDate = new Date(o.created_at);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
+        // Fetch lookup data from Supabase for rendering
+        try {
+            reportCacheBranches = await SupabaseDB.getBranches();
+            reportCacheCustomers = await SupabaseDB.getCustomers();
+            reportCacheProfiles = await SupabaseDB.getProfiles();
+            reportCacheOrderItems = await SupabaseDB.getOrderItems();
+        } catch (err) {
+            console.warn('Failed to fetch report lookup data:', err);
+        }
     }
 
     currentFilteredOrders = allOrders;
@@ -168,10 +177,8 @@ function calculateKPIAggregates(orders) {
     let weeklySales = 0;
     let monthlySales = 0;
 
-    const targetBranch = activeReportBranchId;
-    const allMockOrders = window.MockStore ? window.MockStore.getOrders(targetBranch === 'ALL' ? null : targetBranch) : orders;
-
-    allMockOrders.forEach(o => {
+    // Use the passed orders for KPI calculation
+    orders.forEach(o => {
         const oDate = new Date(o.created_at);
         const amount = parseFloat(o.total_amount || 0);
 
@@ -213,10 +220,10 @@ function renderReportsTable(orders) {
         return;
     }
 
-    const branches = window.MockStore ? window.MockStore.getBranches() : [];
-    const customers = window.MockStore ? window.MockStore.getCustomers() : [];
-    const profiles = window.MockStore ? window.MockStore.getProfiles() : [];
-    const orderItems = window.MockStore ? window.MockStore.getOrderItems() : [];
+    const branches = reportCacheBranches;
+    const customers = reportCacheCustomers;
+    const profiles = reportCacheProfiles;
+    const orderItems = reportCacheOrderItems;
 
     const user = AuthManager.getCurrentUser();
 
@@ -262,7 +269,7 @@ function renderReportsTable(orders) {
 }
 
 /**
- * Delete Order Data (Superadmin & Branch Admin Only)
+ * Delete Order Data (Superadmin & Branch Admin Only) — Supabase only
  */
 async function deleteOrderData(orderId, orderNumber) {
     const user = AuthManager.getCurrentUser();
@@ -275,66 +282,94 @@ async function deleteOrderData(orderId, orderNumber) {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            await window.supabaseClient
-                .from('order_items')
-                .delete()
-                .eq('order_id', orderId);
-
-            const { error } = await window.supabaseClient
-                .from('orders')
-                .delete()
-                .eq('id', orderId);
-
-            if (error) {
-                alert(`Failed to delete order: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase order delete error:', err);
-        }
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot delete order.');
+        return;
     }
 
-    if (window.MockStore) {
-        let orders = window.MockStore.getOrders();
-        orders = orders.filter(o => o.id !== orderId);
-        localStorage.setItem('optical_pos_mock_orders', JSON.stringify(orders));
+    try {
+        await window.supabaseClient
+            .from('order_items')
+            .delete()
+            .eq('order_id', orderId);
 
-        let items = window.MockStore.getOrderItems();
-        items = items.filter(i => i.order_id !== orderId);
-        localStorage.setItem('optical_pos_mock_order_items', JSON.stringify(items));
+        const { error } = await window.supabaseClient
+            .from('orders')
+            .delete()
+            .eq('id', orderId);
+
+        if (error) {
+            alert(`Failed to delete order: ${error.message}`);
+            return;
+        }
+    } catch (err) {
+        console.error('Order delete error:', err);
     }
 
     await fetchSalesReportData();
 }
 
 /**
- * View Historical Receipt Modal
+ * View Historical Receipt Modal — fetches data from Supabase
  */
-function viewHistoricalReceipt(orderId) {
-    const orders = window.MockStore ? window.MockStore.getOrders() : currentFilteredOrders;
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
+async function viewHistoricalReceipt(orderId) {
+    if (!window.supabaseClient) return;
 
-    const items = window.MockStore ? window.MockStore.getOrderItems(orderId) : [];
-    const products = window.MockStore ? window.MockStore.getProducts() : [];
-    const customers = window.MockStore ? window.MockStore.getCustomers() : [];
-    const prescriptions = window.MockStore ? window.MockStore.getPrescriptions() : [];
-    const profiles = window.MockStore ? window.MockStore.getProfiles() : [];
+    // Fetch order
+    const { data: order, error: orderErr } = await window.supabaseClient
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
 
-    const enrichedItems = items.map(i => {
-        const prod = products.find(p => p.id === i.product_id);
-        return {
-            name: prod ? prod.name : 'Optical Product',
-            unit_price: parseFloat(i.unit_price),
-            quantity: i.quantity
-        };
-    });
+    if (orderErr || !order) {
+        alert('Could not load order data.');
+        return;
+    }
 
-    const customer = customers.find(c => c.id === order.customer_id);
-    const prescription = prescriptions.find(p => p.id === order.prescription_id);
-    const cashier = profiles.find(p => p.id === order.cashier_id);
+    // Fetch order items with product names
+    const { data: items } = await window.supabaseClient
+        .from('order_items')
+        .select('*, products(name)')
+        .eq('order_id', orderId);
+
+    const enrichedItems = (items || []).map(i => ({
+        name: i.products ? i.products.name : 'Optical Product',
+        unit_price: parseFloat(i.unit_price),
+        quantity: i.quantity
+    }));
+
+    // Fetch related customer, prescription, cashier
+    let customer = null;
+    let prescription = null;
+    let cashier = null;
+
+    if (order.customer_id) {
+        const { data: c } = await window.supabaseClient
+            .from('customers')
+            .select('*')
+            .eq('id', order.customer_id)
+            .single();
+        customer = c;
+    }
+
+    if (order.prescription_id) {
+        const { data: p } = await window.supabaseClient
+            .from('prescriptions')
+            .select('*')
+            .eq('id', order.prescription_id)
+            .single();
+        prescription = p;
+    }
+
+    if (order.cashier_id) {
+        const { data: u } = await window.supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', order.cashier_id)
+            .single();
+        cashier = u;
+    }
 
     if (typeof renderThermalReceipt === 'function') {
         renderThermalReceipt({
@@ -363,10 +398,10 @@ function exportToExcel() {
         return;
     }
 
-    const branches = window.MockStore ? window.MockStore.getBranches() : [];
-    const customers = window.MockStore ? window.MockStore.getCustomers() : [];
-    const profiles = window.MockStore ? window.MockStore.getProfiles() : [];
-    const orderItems = window.MockStore ? window.MockStore.getOrderItems() : [];
+    const branches = reportCacheBranches;
+    const customers = reportCacheCustomers;
+    const profiles = reportCacheProfiles;
+    const orderItems = reportCacheOrderItems;
 
     const exportData = currentFilteredOrders.map((o, idx) => {
         const branch = branches.find(b => b.id === o.branch_id) || { name: 'Main Branch' };
@@ -451,11 +486,11 @@ function exportToPDF() {
     doc.text(`Total Sales Revenue: $${totalRev.toFixed(2)}`, 85, 47);
     doc.text(`Average Order Value: $${aov.toFixed(2)}`, 150, 47);
 
-    // Build Table Rows
-    const branches = window.MockStore ? window.MockStore.getBranches() : [];
-    const customers = window.MockStore ? window.MockStore.getCustomers() : [];
-    const profiles = window.MockStore ? window.MockStore.getProfiles() : [];
-    const orderItems = window.MockStore ? window.MockStore.getOrderItems() : [];
+    // Build Table Rows from cached data
+    const branches = reportCacheBranches;
+    const customers = reportCacheCustomers;
+    const profiles = reportCacheProfiles;
+    const orderItems = reportCacheOrderItems;
 
     const tableRows = currentFilteredOrders.map(o => {
         const branch = branches.find(b => b.id === o.branch_id) || { name: 'Main Branch' };

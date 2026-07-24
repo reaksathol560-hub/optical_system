@@ -2,6 +2,7 @@
  * =============================================================================
  * SUPERADMIN MANAGEMENT MODULE (BRANCHES & USER ROLES)
  * =============================================================================
+ * All CRUD operations use Supabase exclusively.
  */
 
 let cachedBranches = [];
@@ -25,28 +26,32 @@ document.addEventListener('DOMContentLoaded', async () => {
    ============================================================================= */
 
 async function fetchBranchesList() {
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('branches')
-                .select('*')
-                .order('name');
-
-            if (!error && data) {
-                cachedBranches = data;
-                window.cachedBranches = data;
-                localStorage.setItem('optical_pos_mock_branches', JSON.stringify(data));
-                renderBranchesTable(data);
-                return;
-            }
-        } catch (err) {
-            console.warn('Failed to fetch branches from Supabase, fallback to MockStore:', err);
-        }
+    if (!window.supabaseClient) {
+        cachedBranches = [];
+        renderBranchesTable([]);
+        return;
     }
 
-    cachedBranches = window.MockStore ? window.MockStore.getBranches() : [];
-    window.cachedBranches = cachedBranches;
-    renderBranchesTable(cachedBranches);
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('branches')
+            .select('*')
+            .order('name');
+
+        if (!error && data) {
+            cachedBranches = data;
+            window.cachedBranches = data;
+            renderBranchesTable(data);
+        } else {
+            console.warn('fetchBranchesList error:', error?.message);
+            cachedBranches = [];
+            renderBranchesTable([]);
+        }
+    } catch (err) {
+        console.error('fetchBranchesList exception:', err);
+        cachedBranches = [];
+        renderBranchesTable([]);
+    }
 }
 
 function renderBranchesTable(branches) {
@@ -138,31 +143,25 @@ async function saveBranchData() {
         phone
     };
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('branches')
-                .upsert(branchData);
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot save branch.');
+        return;
+    }
 
-            if (error) {
-                alert(`Failed to save branch: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase branch save error:', err);
+    try {
+        const { error } = await window.supabaseClient
+            .from('branches')
+            .upsert(branchData);
+
+        if (error) {
+            alert(`Failed to save branch: ${error.message}`);
+            return;
         }
+    } catch (err) {
+        console.error('Branch save error:', err);
+        alert(`Error saving branch: ${err.message || err}`);
+        return;
     }
-
-    // Always update local cache & localStorage as well
-    const branches = window.MockStore ? window.MockStore.getBranches() : [];
-    const existingIdx = branches.findIndex(b => b.id === branchData.id);
-    if (existingIdx > -1) {
-        branches[existingIdx] = { ...branches[existingIdx], ...branchData };
-    } else {
-        branches.push({ ...branchData, created_at: new Date().toISOString() });
-    }
-    localStorage.setItem('optical_pos_mock_branches', JSON.stringify(branches));
-    window.cachedBranches = branches;
 
     closeModal('modal-branch');
     await fetchBranchesList();
@@ -177,26 +176,24 @@ async function deleteBranchData(branchId) {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('branches')
-                .delete()
-                .eq('id', branchId);
-
-            if (error) {
-                alert(`Failed to delete branch: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase branch delete error:', err);
-        }
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot delete branch.');
+        return;
     }
 
-    let branches = window.MockStore ? window.MockStore.getBranches() : [];
-    branches = branches.filter(b => b.id !== branchId);
-    localStorage.setItem('optical_pos_mock_branches', JSON.stringify(branches));
-    window.cachedBranches = branches;
+    try {
+        const { error } = await window.supabaseClient
+            .from('branches')
+            .delete()
+            .eq('id', branchId);
+
+        if (error) {
+            alert(`Failed to delete branch: ${error.message}`);
+            return;
+        }
+    } catch (err) {
+        console.error('Branch delete error:', err);
+    }
 
     await fetchBranchesList();
     await AuthManager.applyRBAC();
@@ -211,25 +208,31 @@ async function deleteBranchData(branchId) {
    ============================================================================= */
 
 async function fetchUsersList() {
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('profiles')
-                .select('*, branches(name)')
-                .order('created_at', { ascending: false });
-
-            if (!error && data) {
-                cachedUsers = data;
-                renderUsersTable(data);
-                return;
-            }
-        } catch (err) {
-            console.warn('Failed to fetch users from Supabase, fallback to MockStore:', err);
-        }
+    if (!window.supabaseClient) {
+        cachedUsers = [];
+        renderUsersTable([]);
+        return;
     }
 
-    cachedUsers = window.MockStore ? window.MockStore.getProfiles() : [];
-    renderUsersTable(cachedUsers);
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('profiles')
+            .select('*, branches(name)')
+            .order('created_at', { ascending: false });
+
+        if (!error && data) {
+            cachedUsers = data;
+            renderUsersTable(data);
+        } else {
+            console.warn('fetchUsersList error:', error?.message);
+            cachedUsers = [];
+            renderUsersTable([]);
+        }
+    } catch (err) {
+        console.error('fetchUsersList exception:', err);
+        cachedUsers = [];
+        renderUsersTable([]);
+    }
 }
 
 function renderUsersTable(users) {
@@ -251,7 +254,7 @@ function renderUsersTable(users) {
         return;
     }
 
-    const branches = cachedBranches.length ? cachedBranches : (window.MockStore ? window.MockStore.getBranches() : []);
+    const branches = cachedBranches.length ? cachedBranches : [];
 
     tbody.innerHTML = users.map(u => {
         const branch = u.branches ? u.branches : branches.find(b => b.id === u.branch_id);
@@ -300,8 +303,8 @@ function openUserModal(userId = null) {
     const roleSelect = document.getElementById('user-role');
     const branchSelect = document.getElementById('user-branch-select');
 
-    // Populate branch options
-    const branches = cachedBranches.length ? cachedBranches : (window.MockStore ? window.MockStore.getBranches() : []);
+    // Populate branch options from cached Supabase data
+    const branches = cachedBranches.length ? cachedBranches : [];
     if (branchSelect) {
         branchSelect.innerHTML = branches.map(b => `<option value="${b.id}">📍 ${b.name}</option>`).join('');
     }
@@ -351,89 +354,72 @@ async function saveUserData() {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            if (!editingUserId) {
-                let newUserId = 'usr-' + Date.now();
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot save user.');
+        return;
+    }
 
-                // Optional: Attempt Supabase Auth Registration
-                try {
-                    const { data: authData } = await window.supabaseClient.auth.signUp({
-                        email,
-                        password,
-                        options: {
-                            data: {
-                                full_name: fullName,
-                                role,
-                                branch_id: branchId
-                            }
+    try {
+        if (!editingUserId) {
+            let newUserId = 'usr-' + Date.now();
+
+            // Optional: Attempt Supabase Auth Registration
+            try {
+                const { data: authData } = await window.supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: fullName,
+                            role,
+                            branch_id: branchId
                         }
-                    });
-
-                    if (authData && authData.user) {
-                        newUserId = authData.user.id;
                     }
-                } catch (authEx) {
-                    console.warn('Supabase Auth signUp skipped or requires confirmation, proceeding to insert into profiles:', authEx);
-                }
+                });
 
-                // Insert into Profiles database table directly
-                const { error: profileErr } = await window.supabaseClient
-                    .from('profiles')
-                    .upsert([{
-                        id: newUserId,
-                        email,
-                        password,
-                        full_name: fullName,
-                        role,
-                        branch_id: branchId
-                    }]);
-
-                if (profileErr) {
-                    alert(`Failed to save staff profile: ${profileErr.message}`);
-                    return;
+                if (authData && authData.user) {
+                    newUserId = authData.user.id;
                 }
-            } else {
-                // Update existing profile
-                const { error } = await window.supabaseClient
-                    .from('profiles')
-                    .update({
-                        full_name: fullName,
-                        role,
-                        branch_id: branchId
-                    })
-                    .eq('id', editingUserId);
-
-                if (error) {
-                    alert(`Failed to update profile: ${error.message}`);
-                    return;
-                }
+            } catch (authEx) {
+                console.warn('Supabase Auth signUp skipped or requires confirmation, proceeding to insert into profiles:', authEx);
             }
-        } catch (err) {
-            console.error('Supabase user save error:', err);
-            alert(`Error saving user account: ${err.message || err}`);
-            return;
-        }
-    } else if (window.MockStore) {
-        const profiles = window.MockStore.getProfiles();
-        if (editingUserId) {
-            const idx = profiles.findIndex(u => u.id === editingUserId);
-            if (idx > -1) {
-                profiles[idx].full_name = fullName;
-                profiles[idx].role = role;
-                profiles[idx].branch_id = branchId;
+
+            // Insert into Profiles database table directly
+            const { error: profileErr } = await window.supabaseClient
+                .from('profiles')
+                .upsert([{
+                    id: newUserId,
+                    email,
+                    password,
+                    full_name: fullName,
+                    role,
+                    branch_id: branchId
+                }]);
+
+            if (profileErr) {
+                alert(`Failed to save staff profile: ${profileErr.message}`);
+                return;
             }
         } else {
-            profiles.unshift({
-                id: 'usr-' + Date.now(),
-                email,
-                full_name: fullName,
-                role,
-                branch_id: branchId,
-                created_at: new Date().toISOString()
-            });
+            // Update existing profile
+            const { error } = await window.supabaseClient
+                .from('profiles')
+                .update({
+                    full_name: fullName,
+                    role,
+                    branch_id: branchId
+                })
+                .eq('id', editingUserId);
+
+            if (error) {
+                alert(`Failed to update profile: ${error.message}`);
+                return;
+            }
         }
-        localStorage.setItem('optical_pos_mock_profiles', JSON.stringify(profiles));
+    } catch (err) {
+        console.error('User save error:', err);
+        alert(`Error saving user account: ${err.message || err}`);
+        return;
     }
 
     closeModal('modal-user');
@@ -445,24 +431,23 @@ async function deleteUserData(userId) {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('profiles')
-                .delete()
-                .eq('id', userId);
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot delete user.');
+        return;
+    }
 
-            if (error) {
-                alert(`Failed to delete user profile: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase user delete error:', err);
+    try {
+        const { error } = await window.supabaseClient
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
+
+        if (error) {
+            alert(`Failed to delete user profile: ${error.message}`);
+            return;
         }
-    } else if (window.MockStore) {
-        let profiles = window.MockStore.getProfiles();
-        profiles = profiles.filter(u => u.id !== userId);
-        localStorage.setItem('optical_pos_mock_profiles', JSON.stringify(profiles));
+    } catch (err) {
+        console.error('User delete error:', err);
     }
 
     await fetchUsersList();
@@ -480,35 +465,37 @@ async function fetchInventoryList() {
     const user = AuthManager.getCurrentUser();
     const activeBranchId = AuthManager.getActiveBranchId();
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            let query = window.supabaseClient
-                .from('products')
-                .select('*, branches(name)')
-                .order('created_at', { ascending: false });
+    if (!window.supabaseClient) {
+        cachedProducts = [];
+        renderInventoryTable([]);
+        return;
+    }
 
-            if (user && user.role !== 'superadmin') {
-                query = query.eq('branch_id', activeBranchId);
-            }
+    try {
+        let query = window.supabaseClient
+            .from('products')
+            .select('*, branches(name)')
+            .order('created_at', { ascending: false });
 
-            const { data, error } = await query;
-
-            if (!error && data) {
-                cachedProducts = data;
-                renderInventoryTable(data);
-                return;
-            }
-        } catch (err) {
-            console.warn('Failed to fetch inventory from Supabase, fallback to MockStore:', err);
+        if (user && user.role !== 'superadmin') {
+            query = query.eq('branch_id', activeBranchId);
         }
-    }
 
-    let products = window.MockStore ? window.MockStore.getProducts() : [];
-    if (user && user.role !== 'superadmin') {
-        products = products.filter(p => p.branch_id === activeBranchId);
+        const { data, error } = await query;
+
+        if (!error && data) {
+            cachedProducts = data;
+            renderInventoryTable(data);
+        } else {
+            console.warn('fetchInventoryList error:', error?.message);
+            cachedProducts = [];
+            renderInventoryTable([]);
+        }
+    } catch (err) {
+        console.error('fetchInventoryList exception:', err);
+        cachedProducts = [];
+        renderInventoryTable([]);
     }
-    cachedProducts = products;
-    renderInventoryTable(products);
 }
 
 function renderInventoryTable(products) {
@@ -530,7 +517,7 @@ function renderInventoryTable(products) {
         return;
     }
 
-    const branches = cachedBranches.length ? cachedBranches : (window.MockStore ? window.MockStore.getBranches() : []);
+    const branches = cachedBranches.length ? cachedBranches : [];
 
     tbody.innerHTML = products.map(p => {
         const branch = p.branches ? p.branches : branches.find(b => b.id === p.branch_id);
@@ -618,41 +605,42 @@ async function saveQuickStockPrice() {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('products')
-                .update({ price, stock })
-                .eq('id', quickAdjustProductId);
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot update stock.');
+        return;
+    }
 
-            if (error) {
-                alert(`Failed to update stock and price: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Stock adjustment error:', err);
+    try {
+        const { error } = await window.supabaseClient
+            .from('products')
+            .update({ price, stock })
+            .eq('id', quickAdjustProductId);
+
+        if (error) {
+            alert(`Failed to update stock and price: ${error.message}`);
+            return;
         }
-    } else if (window.MockStore) {
-        const products = window.MockStore.getProducts();
-        const idx = products.findIndex(p => p.id === quickAdjustProductId);
-        if (idx > -1) {
-            products[idx].price = price;
-            products[idx].stock = stock;
-        }
-        localStorage.setItem('optical_pos_mock_products', JSON.stringify(products));
+    } catch (err) {
+        console.error('Stock adjustment error:', err);
     }
 
     closeModal('modal-adjust-stock');
     await fetchInventoryList();
 
-    if (typeof renderProductsGrid === 'function') {
-        renderProductsGrid();
+    // Also refresh POS products grid
+    if (typeof loadBranchProducts === 'function') {
+        await loadBranchProducts();
     }
 }
 
 async function syncMasterCatalogToBranch() {
     const activeBranchId = AuthManager.getActiveBranchId();
     if (!confirm(`Apply all 15 master optical catalog products to this branch? Products will be initialized with default price & stock.`)) {
+        return;
+    }
+
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot sync catalog.');
         return;
     }
 
@@ -687,24 +675,22 @@ async function syncMasterCatalogToBranch() {
         description: item.desc
     }));
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('products')
-                .upsert(branchProducts);
+    try {
+        const { error } = await window.supabaseClient
+            .from('products')
+            .upsert(branchProducts);
 
-            if (error) {
-                alert(`Catalog sync failed: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Catalog sync error:', err);
+        if (error) {
+            alert(`Catalog sync failed: ${error.message}`);
+            return;
         }
+    } catch (err) {
+        console.error('Catalog sync error:', err);
     }
 
     await fetchInventoryList();
-    if (typeof renderProductsGrid === 'function') {
-        renderProductsGrid();
+    if (typeof loadBranchProducts === 'function') {
+        await loadBranchProducts();
     }
 }
 
@@ -723,7 +709,7 @@ function openProductModal(productId = null) {
     const imageUrlInput = document.getElementById('prod-image-url');
     const descInput = document.getElementById('prod-desc');
 
-    const branches = cachedBranches.length ? cachedBranches : (window.MockStore ? window.MockStore.getBranches() : []);
+    const branches = cachedBranches.length ? cachedBranches : [];
     if (branchSelect) {
         branchSelect.innerHTML = branches.map(b => `<option value="${b.id}">📍 ${b.name}</option>`).join('');
     }
@@ -787,41 +773,32 @@ async function saveProductData() {
         description
     };
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('products')
-                .upsert([prodData]);
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot save product.');
+        return;
+    }
 
-            if (error) {
-                alert(`Failed to save product: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase product save error:', err);
+    try {
+        const { error } = await window.supabaseClient
+            .from('products')
+            .upsert([prodData]);
+
+        if (error) {
+            alert(`Failed to save product: ${error.message}`);
+            return;
         }
-    } else if (window.MockStore) {
-        const products = window.MockStore.getProducts();
-        if (editingProductId) {
-            const idx = products.findIndex(p => p.id === editingProductId);
-            if (idx > -1) {
-                products[idx] = { ...products[idx], ...prodData };
-            }
-        } else {
-            products.unshift({
-                ...prodData,
-                created_at: new Date().toISOString()
-            });
-        }
-        localStorage.setItem('optical_pos_mock_products', JSON.stringify(products));
+    } catch (err) {
+        console.error('Product save error:', err);
+        alert(`Error saving product: ${err.message || err}`);
+        return;
     }
 
     closeModal('modal-product');
     await fetchInventoryList();
 
-    // Also refresh POS products grid if on POS tab
-    if (typeof renderProductsGrid === 'function') {
-        renderProductsGrid();
+    // Also refresh POS products grid
+    if (typeof loadBranchProducts === 'function') {
+        await loadBranchProducts();
     }
 }
 
@@ -830,29 +807,28 @@ async function deleteProductData(productId) {
         return;
     }
 
-    if (typeof isSupabaseConfigured === 'function' && isSupabaseConfigured() && window.supabaseClient) {
-        try {
-            const { error } = await window.supabaseClient
-                .from('products')
-                .delete()
-                .eq('id', productId);
+    if (!window.supabaseClient) {
+        alert('Supabase is not configured. Cannot delete product.');
+        return;
+    }
 
-            if (error) {
-                alert(`Failed to delete product: ${error.message}`);
-                return;
-            }
-        } catch (err) {
-            console.error('Supabase product delete error:', err);
+    try {
+        const { error } = await window.supabaseClient
+            .from('products')
+            .delete()
+            .eq('id', productId);
+
+        if (error) {
+            alert(`Failed to delete product: ${error.message}`);
+            return;
         }
-    } else if (window.MockStore) {
-        let products = window.MockStore.getProducts();
-        products = products.filter(p => p.id !== productId);
-        localStorage.setItem('optical_pos_mock_products', JSON.stringify(products));
+    } catch (err) {
+        console.error('Product delete error:', err);
     }
 
     await fetchInventoryList();
-    if (typeof renderProductsGrid === 'function') {
-        renderProductsGrid();
+    if (typeof loadBranchProducts === 'function') {
+        await loadBranchProducts();
     }
 }
 
@@ -903,5 +879,3 @@ function scanBarcodeToInventory(scannedSku) {
 }
 
 window.scanBarcodeToInventory = scanBarcodeToInventory;
-
-
